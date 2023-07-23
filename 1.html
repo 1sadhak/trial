@@ -1,0 +1,344 @@
+///////////////////////////////////////////////////
+SOCKET PROGRAMMING
+/////////////////////////////////////////////////////
+import socket
+s = socket.socket()
+print("Socket successfully created")
+port = 123
+s.bind(('', port))
+print("Socket bound to %s" % port)
+s.listen(5)
+print("Socket is listening")
+while True:
+    c, addr = s.accept()
+    print("Got connection from", addr)
+    response=c.recv(1024).decode()
+    print("Received  message from client:",response)
+    c.close()
+client:
+import socket
+s=socket.socket()
+port=123
+s.connect(('127.0.0.1',port))
+message=input("enter messagee to send to client")
+s.send(message.encode())
+s.close()
+///////////////////////////////////
+DATE TIME:
+///////////////////////////////////
+Client:
+import socket
+import datetime
+s=socket.socket()
+port=123
+s.connect(('127.0.0.1',port))
+now = datetime.datetime.now().strftime("2023-07-23 23:45:53")
+s.send(now.encode())
+s.close()
+
+Server:
+
+import socket
+s = socket.socket()
+print("Socket successfully created")
+port = 123
+s.bind(('', port))
+print("Socket bound to %s" % port)
+s.listen(5)
+print("Socket is listening")
+while True:
+    c, addr = s.accept()
+    print("Got connection from", addr)
+    response=c.recv(1024).decode()
+    print("Received  message from client:",response)
+    c.close()
+///////////////////////////////////////
+SOCKET PROGRAMMING USING UDP
+//////////////////////////////////////////////////
+Server:
+import socket
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+host = '127.0.0.1'
+port = 12345
+server_socket.bind((host, port))
+print("UDP server is ready to receive messages.")
+while True:
+    data, addr = server_socket.recvfrom(1024)
+    print("Received message from client:", data.decode())
+
+CLIENT:
+
+import socket
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+host = '127.0.0.1'
+port = 12345
+while True:
+    message = input("Enter message to send to server (type 'exit' to quit): ")
+    if message.lower() == 'exit':
+        break
+    client_socket.sendto(message.encode(), (host, port))
+client_socket.close()
+/////////////////////////////////////////////////////////////////////////
+CRC ERROR DETECTION:
+//////////////////////////////////////////////////
+SERVER:
+import socket, crcmod.predefined as crc
+def crc_error_detection_server():
+    generator = crc.mkCrcFun('crc-32')
+    s = socket.socket()
+    s.bind(('127.0.0.1', 12345))
+    s.listen(1)
+    print("CRC Error Detection Server is listening for incoming connections...")
+    while True:
+        c, a = s.accept()
+        print("Connected with client:", a)
+        msg_with_crc = c.recv(1024).decode()
+        msg, received_crc = msg_with_crc[:-8], msg_with_crc[-8:]
+        response = "ACK" if received_crc == format(generator(msg.encode()), '08x') else "NAK"
+        c.send(response.encode())
+        c.close()
+crc_error_detection_server()
+
+CLIENT:
+import socket, crcmod.predefined as crc
+
+def crc_error_detection_client():
+    generator = crc.mkCrcFun('crc-32')
+    s = socket.socket()
+    s.connect(('127.0.0.1', 12345))
+    msg = input("Enter the message to send to the server: ")
+    msg_with_crc = msg + format(generator(msg.encode()), '08x')
+    s.send(msg_with_crc.encode())
+    print(s.recv(1024).decode())
+    s.close()
+
+crc_error_detection_client()
+//////////////////////////////////////////////////////////////////////////////////////////////
+CHECKSUM
+//////////////////////////////////////////////////////////////////
+
+SERVER:
+import socket, zlib
+
+s = socket.socket()
+s.bind(('', 12345))
+s.listen(5)
+
+while True:
+    c, addr = s.accept()
+    data = c.recv(1024)
+    
+    # Extract the checksum (last 4 bytes) and convert to an integer
+    checksum = int.from_bytes(data[-4:], 'big')
+    data = data[:-4]  # Remove the checksum from the data for verification
+
+    c.send(b"ACK" if zlib.crc32(data) == checksum else b"NAK")
+    c.close()
+
+
+CLIENT:
+import socket, zlib
+s = socket.socket()
+s.connect(('127.0.0.1', 12345))
+message = input("Enter message to send to server:").encode()
+checksum = zlib.crc32(message)
+# Append the checksum to the message
+message_with_checksum = message + checksum.to_bytes(4, 'big')
+s.send(message_with_checksum)
+response = s.recv(1024)
+print("Server acknowledged the data." if response == b"ACK" else "Server did not acknowledge the data due to errors.")
+
+//////////////////////////////////////////
+FTP
+//////////////////////////////////////////////
+SERVER:
+import socket
+
+def ftp_file_server():
+    with socket.socket() as server_socket:
+        server_socket.bind(('127.0.0.1', 12345))
+        server_socket.listen(5)
+
+        print("FTP-like File Server is listening for incoming connections...")
+
+        while True:
+            client_socket, client_address = server_socket.accept()
+            print("Connected with client:", client_address)
+
+            with open("received_file.txt", "wb") as file:
+                while (data := client_socket.recv(1024)):
+                    file.write(data)
+
+            print("File received and saved as 'received_file.txt'")
+            client_socket.send(b"File received successfully.")
+            client_socket.close()
+
+ftp_file_server()
+CLIENT
+import socket
+
+def ftp_file_client():
+    with socket.socket() as client_socket:
+        host = '127.0.0.1'
+        port = 12345
+
+        client_socket.connect((host, port))
+
+        file_path = input("Enter the file path to send to the server: ")
+
+        with open(file_path, "rb") as file:
+            for data in iter(lambda: file.read(1024), b""):
+                client_socket.send(data)
+
+        response = client_socket.recv(1024)
+        print(response.decode())
+
+ftp_file_client()
+/home/lugvitc/Desktop/text.txt
+//////////////////////////////////////////////////////////////////////////
+ARP AND RARP
+//////////////////////////////////////////////////////////////
+SERVER:
+import socket
+
+ip_to_mac = {
+    "192.168.1.1": "11:22:33:44:55:66",
+    "192.168.1.2": "aa:bb:cc:dd:ee:ff",
+    # Add more IP-MAC mappings as needed
+}
+
+def arp_rarp_server():
+    server_socket = socket.socket()
+    server_socket.bind(('127.0.0.1', 12345))
+    server_socket.listen(1)
+
+    print("ARP and RARP Server is listening for incoming connections...")
+
+    while True:
+        client_socket, client_address = server_socket.accept()
+        print("Connected with client:", client_address)
+
+        ip_address = client_socket.recv(1024).decode()
+
+        if ip_address in ip_to_mac:
+            mac_address = ip_to_mac[ip_address]
+            client_socket.send(mac_address.encode())
+        else:
+            client_socket.send(b"MAC address not found for the given IP.")
+
+        client_socket.close()
+
+arp_rarp_server()
+
+CLIENT:
+import socket
+
+def arp_rarp_client():
+    client_socket = socket.socket()
+    host = '127.0.0.1'
+    port = 12345
+
+    client_socket.connect((host, port))
+
+    ip_address = input("Enter the IP address to query: ")
+    client_socket.send(ip_address.encode())
+
+    mac_address = client_socket.recv(1024).decode()
+    print(f"MAC Address for IP {ip_address}: {mac_address}")
+
+    client_socket.close()
+
+arp_rarp_client()
+
+/////////////////////////////////////////////////////////////
+                                                   IP ADDRESS SUBNET MASK
+///////////////////////////////////////////////
+SERVER:
+import socket
+
+def get_ip_class_and_subnet(ip):
+    first_octet = int(ip.split('.')[0])
+    if 1 <= first_octet <= 126: return 'Class A', '255.0.0.0'
+    elif 128 <= first_octet <= 191: return 'Class B', '255.255.0.0'
+    elif 192 <= first_octet <= 223: return 'Class C', '255.255.255.0'
+    return 'Unknown', ''
+
+host, port = '127.0.0.1', 12345
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind((host, port))
+server_socket.listen(1)
+print('Server listening on {}:{}'.format(host, port))
+
+while True:
+    client_socket, client_address = server_socket.accept()
+    print('Connection from:', client_address)
+    client_ip = client_socket.recv(1024).decode().strip()
+    print('Received IP:', client_ip)
+    ip_class, subnet_mask = get_ip_class_and_subnet(client_ip)
+    response = f'IP Class: {ip_class}, Subnet Mask: {subnet_mask}'
+    client_socket.sendall(response.encode())
+    client_socket.close()
+
+CLIENT:
+import socket
+
+host, port = '127.0.0.1', 12345
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client_socket.connect((host, port))
+
+try:
+    ip_address = input('Enter the IP address: ')
+    client_socket.sendall(ip_address.encode())
+    response = client_socket.recv(1024).decode()
+    print('Response from server:', response)
+except Exception as e:
+    print('Error:', e)
+finally:
+    client_socket.close()
+
+///////////////////////////////////
+                                       LINK STATE ROUTING PROTOCOL
+////////////////////////////////
+SERVER:
+import socket
+
+# Router ID and Link State Database (LSDB)
+router_id = 1
+lsdb = {
+    router_id: [(2, 1), (3, 3)]  # (neighbor_router_id, cost)
+}
+
+def link_state_router():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('127.0.0.1', 12345))
+    s.listen(1)
+    
+    print("Router is waiting for incoming connections...")
+
+    while True:
+        c, addr = s.accept()
+        print("Connected with neighbor:", addr)
+        
+        # Send LSDB to the neighbor
+        data = str(lsdb).encode()
+        c.send(data)
+        
+        c.close()
+
+link_state_router()
+CLIENT:
+
+import socket
+def neighbor_router():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('127.0.0.1', 12345))
+    # Receive LSDB from the router
+    data = s.recv(1024).decode()
+    lsdb = eval(data)  # Convert received string back to dictionary
+    print("Received Link State Database (LSDB) from the router:")
+    print(lsdb)
+    s.close()
+
+neighbor_router()
+///////////////////////////////////////////////////////////////
+
